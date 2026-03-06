@@ -86,6 +86,37 @@ class MyFirstStrategy(IStrategy):
     buy_rsi = IntParameter(10, 40, default=30, space="buy", optimize=True, load=True)
     sell_rsi = IntParameter(60, 90, default=70, space="sell", optimize=True, load=True)
 
+    # Plot configuration for chart visualization
+    # Add indicators here that you want to see in the Web UI charts
+    plot_config = {
+        # Main plot indicators (shown on price chart)
+        # These overlay on the candlestick chart
+        "main_plot": {
+            # Uncomment to add moving averages:
+            # "ema_20": {"color": "blue", "type": "line"},
+            # "ema_50": {"color": "orange", "type": "line"},
+            # "sma_20": {"color": "green", "type": "line"},
+            
+            # Bollinger Bands (automatically shown as shaded area if bb_lowerband/bb_upperband exist)
+            # No need to add here - they're auto-detected
+        },
+        # Subplots (shown below main chart in separate panels)
+        "subplots": {
+            "RSI": {
+                "rsi": {"color": "red"},
+                # Add horizontal lines for buy/sell thresholds
+                # "buy_rsi_line": {"color": "green", "type": "line"},  # if you add this indicator
+                # "sell_rsi_line": {"color": "red", "type": "line"},   # if you add this indicator
+            },
+            # Uncomment to add MACD subplot:
+            # "MACD": {
+            #     "macd": {"color": "blue"},
+            #     "macdsignal": {"color": "orange"},
+            #     "macdhist": {"type": "bar", "plotly": {"opacity": 0.9}},
+            # },
+        }
+    }
+
     def informative_pairs(self):
         """
         Define additional, informative pair/interval combinations to be cached from the exchange.
@@ -103,6 +134,26 @@ class MyFirstStrategy(IStrategy):
         """
         # RSI - Relative Strength Index
         dataframe["rsi"] = ta.RSI(dataframe)
+        
+        # Optional: Add more indicators for visualization
+        # Uncomment the ones you want to see in charts:
+        
+        # Moving Averages (shown on main price chart)
+        # dataframe["ema_20"] = ta.EMA(dataframe, timeperiod=20)
+        # dataframe["ema_50"] = ta.EMA(dataframe, timeperiod=50)
+        # dataframe["sma_20"] = ta.SMA(dataframe, timeperiod=20)
+        
+        # MACD (shown in subplot)
+        # macd = ta.MACD(dataframe)
+        # dataframe["macd"] = macd["macd"]
+        # dataframe["macdsignal"] = macd["macdsignal"]
+        # dataframe["macdhist"] = macd["macdhist"]
+        
+        # Bollinger Bands (shown on main chart as shaded area)
+        # bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
+        # dataframe["bb_lowerband"] = bollinger["lower"]
+        # dataframe["bb_middleband"] = bollinger["mid"]
+        # dataframe["bb_upperband"] = bollinger["upper"]
 
         return dataframe
 
