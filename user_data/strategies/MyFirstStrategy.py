@@ -92,28 +92,22 @@ class MyFirstStrategy(IStrategy):
         # Main plot indicators (shown on price chart)
         # These overlay on the candlestick chart
         "main_plot": {
-            # Uncomment to add moving averages:
-            # "ema_20": {"color": "blue", "type": "line"},
-            # "ema_50": {"color": "orange", "type": "line"},
-            # "sma_20": {"color": "green", "type": "line"},
-            
-            # Bollinger Bands (automatically shown as shaded area if bb_lowerband/bb_upperband exist)
-            # No need to add here - they're auto-detected
+            "ema_20": {"color": "blue", "type": "line"},
+            "ema_50": {"color": "orange", "type": "line"},
+            # Bollinger Bands are automatically shown if bb_lowerband/bb_upperband exist
         },
         # Subplots (shown below main chart in separate panels)
         "subplots": {
             "RSI": {
                 "rsi": {"color": "red"},
-                # Add horizontal lines for buy/sell thresholds
-                # "buy_rsi_line": {"color": "green", "type": "line"},  # if you add this indicator
-                # "sell_rsi_line": {"color": "red", "type": "line"},   # if you add this indicator
+                "rsi_buy": {"color": "green", "type": "line"},  # Buy threshold line
+                "rsi_sell": {"color": "red", "type": "line"},   # Sell threshold line
             },
-            # Uncomment to add MACD subplot:
-            # "MACD": {
-            #     "macd": {"color": "blue"},
-            #     "macdsignal": {"color": "orange"},
-            #     "macdhist": {"type": "bar", "plotly": {"opacity": 0.9}},
-            # },
+            "MACD": {
+                "macd": {"color": "blue"},
+                "macdsignal": {"color": "orange"},
+                "macdhist": {"type": "bar", "plotly": {"opacity": 0.9}},
+            },
         }
     }
 
@@ -135,21 +129,22 @@ class MyFirstStrategy(IStrategy):
         # RSI - Relative Strength Index
         dataframe["rsi"] = ta.RSI(dataframe)
         
-        # Optional: Add more indicators for visualization
-        # Uncomment the ones you want to see in charts:
+        # RSI threshold lines for visualization
+        dataframe["rsi_buy"] = self.buy_rsi.value
+        dataframe["rsi_sell"] = self.sell_rsi.value
         
         # Moving Averages (shown on main price chart)
-        # dataframe["ema_20"] = ta.EMA(dataframe, timeperiod=20)
-        # dataframe["ema_50"] = ta.EMA(dataframe, timeperiod=50)
-        # dataframe["sma_20"] = ta.SMA(dataframe, timeperiod=20)
+        dataframe["ema_20"] = ta.EMA(dataframe, timeperiod=20)
+        dataframe["ema_50"] = ta.EMA(dataframe, timeperiod=50)
         
         # MACD (shown in subplot)
-        # macd = ta.MACD(dataframe)
-        # dataframe["macd"] = macd["macd"]
-        # dataframe["macdsignal"] = macd["macdsignal"]
-        # dataframe["macdhist"] = macd["macdhist"]
+        macd = ta.MACD(dataframe)
+        dataframe["macd"] = macd["macd"]
+        dataframe["macdsignal"] = macd["macdsignal"]
+        dataframe["macdhist"] = macd["macdhist"]
         
-        # Bollinger Bands (shown on main chart as shaded area)
+        # Optional: Bollinger Bands (shown on main chart as shaded area)
+        # Uncomment if you want to see Bollinger Bands:
         # bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
         # dataframe["bb_lowerband"] = bollinger["lower"]
         # dataframe["bb_middleband"] = bollinger["mid"]

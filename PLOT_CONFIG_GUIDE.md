@@ -81,84 +81,67 @@ def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame
 ```python
 plot_config = {
     "main_plot": {
-        "ema_20": {"color": "blue"},  # Must match column name from populate_indicators
+        "ema_20": {"color": "blue"},
     },
     "subplots": {
         "RSI": {
-            "rsi": {"color": "red"},  # Must match column name
+            "rsi": {"color": "red"},
         }
     }
 }
 ```
 
-## Common Indicators Examples
+## Your Updated Strategy
+
+I've updated your `MyFirstStrategy.py` to include:
+
+✅ **Main Plot:**
+- EMA 20 (blue line)
+- EMA 50 (orange line)
+
+✅ **Subplots:**
+- RSI (red line) with buy/sell threshold lines
+- MACD (blue line, orange signal, histogram bars)
+
+## Viewing in Web UI
+
+After updating your strategy:
+
+1. **Restart the webserver** (if running)
+2. **Run a new backtest** to see the indicators
+3. **View in Web UI:** The charts will automatically show all configured indicators
+
+## Common Indicators You Can Add
 
 ### Moving Averages
-
 ```python
-# In populate_indicators:
 dataframe["sma_20"] = ta.SMA(dataframe, timeperiod=20)
 dataframe["ema_20"] = ta.EMA(dataframe, timeperiod=20)
 dataframe["ema_50"] = ta.EMA(dataframe, timeperiod=50)
-
-# In plot_config:
-"main_plot": {
-    "sma_20": {"color": "blue"},
-    "ema_20": {"color": "green"},
-    "ema_50": {"color": "orange"},
-}
 ```
 
 ### MACD
-
 ```python
-# In populate_indicators:
 macd = ta.MACD(dataframe)
 dataframe["macd"] = macd["macd"]
 dataframe["macdsignal"] = macd["macdsignal"]
 dataframe["macdhist"] = macd["macdhist"]
-
-# In plot_config:
-"subplots": {
-    "MACD": {
-        "macd": {"color": "blue"},
-        "macdsignal": {"color": "orange"},
-        "macdhist": {"type": "bar", "plotly": {"opacity": 0.9}},
-    }
-}
 ```
 
 ### Bollinger Bands
-
 ```python
-# In populate_indicators:
 bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
 dataframe["bb_lowerband"] = bollinger["lower"]
-dataframe["bb_upperband"] = bollinger["upper"]
 dataframe["bb_middleband"] = bollinger["mid"]
-
-# In plot_config:
-# Bollinger bands are AUTO-DETECTED if bb_lowerband and bb_upperband exist
-# No need to add to plot_config - they appear as shaded area automatically
+dataframe["bb_upperband"] = bollinger["upper"]
+# Auto-detected in plot - no need to add to plot_config
 ```
 
-### RSI with Threshold Lines
-
+### Stochastic
 ```python
-# In populate_indicators:
-dataframe["rsi"] = ta.RSI(dataframe)
-# Add threshold lines (optional)
-dataframe["rsi_buy"] = 30  # Your buy threshold
-dataframe["rsi_sell"] = 70  # Your sell threshold
-
-# In plot_config:
-"subplots": {
-    "RSI": {
-        "rsi": {"color": "red"},
-        "rsi_buy": {"color": "green", "type": "line"},
-        "rsi_sell": {"color": "red", "type": "line"},
-    }
-}
+stoch = ta.STOCH(dataframe)
+dataframe["slowd"] = stoch["slowd"]
+dataframe["slowk"] = stoch["slowk"]
 ```
 
 ## Plot Configuration Options
@@ -197,51 +180,6 @@ dataframe["rsi_sell"] = 70  # Your sell threshold
 3. **Performance:** Only calculate indicators you actually use - don't calculate everything just for plotting
 4. **Bollinger Bands:** Automatically detected - no need to add to `plot_config`
 5. **Volume:** Usually shown automatically, but you can customize it
-
-## Example: Complete Strategy with Multiple Indicators
-
-```python
-def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-    # RSI
-    dataframe["rsi"] = ta.RSI(dataframe)
-    
-    # Moving Averages
-    dataframe["ema_20"] = ta.EMA(dataframe, timeperiod=20)
-    dataframe["ema_50"] = ta.EMA(dataframe, timeperiod=50)
-    
-    # MACD
-    macd = ta.MACD(dataframe)
-    dataframe["macd"] = macd["macd"]
-    dataframe["macdsignal"] = macd["macdsignal"]
-    dataframe["macdhist"] = macd["macdhist"]
-    
-    return dataframe
-
-plot_config = {
-    "main_plot": {
-        "ema_20": {"color": "blue"},
-        "ema_50": {"color": "orange"},
-    },
-    "subplots": {
-        "RSI": {
-            "rsi": {"color": "red"},
-        },
-        "MACD": {
-            "macd": {"color": "blue"},
-            "macdsignal": {"color": "orange"},
-            "macdhist": {"type": "bar"},
-        }
-    }
-}
-```
-
-## Viewing Charts
-
-After adding indicators to `plot_config`:
-
-1. **In Web UI:** Charts automatically show configured indicators
-2. **Backtesting:** Use `freqtrade plot-dataframe` command
-3. **Live Trading:** Charts update in real-time in Web UI
 
 ## Troubleshooting
 
