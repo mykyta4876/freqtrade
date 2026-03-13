@@ -56,11 +56,36 @@ async function checkData() {
       params.timerange = timerange.value.trim();
     }
 
-    const response = await api.get('/api/v1/check_data', { params });
+    const response = await api.get('/check_data', { params });
     result.value = response.data;
   } catch (err: any) {
     console.error('Error checking data:', err);
-    error.value = err.response?.data?.detail || err.message || 'Failed to check data';
+    console.error('Error response:', err.response);
+    console.error('Error request:', err.request);
+    console.error('Full error:', JSON.stringify(err, null, 2));
+    
+    // Better error handling
+    if (err.response) {
+      if (err.response.status === 404) {
+        error.value = `API endpoint not found (404). The /api/v1/check_data endpoint may not be available. 
+        Please ensure:
+        1. Webserver is running in webserver mode (freqtrade webserver)
+        2. Webserver was restarted after adding the endpoint
+        3. Check server logs for errors`;
+      } else if (err.response.status === 401) {
+        error.value = 'Authentication failed. Please login again.';
+      } else if (err.response.status === 403) {
+        error.value = 'Access forbidden. Make sure you are in webserver mode.';
+      } else if (err.response.status === 500) {
+        error.value = `Server error: ${err.response.data?.detail || err.response.data?.message || 'Internal server error'}`;
+      } else {
+        error.value = err.response.data?.detail || err.response.data?.message || `Error ${err.response.status}: ${err.response.statusText}`;
+      }
+    } else if (err.request) {
+      error.value = 'No response from server. Check if webserver is running and accessible.';
+    } else {
+      error.value = err.message || 'Failed to check data';
+    }
   } finally {
     loading.value = false;
   }
