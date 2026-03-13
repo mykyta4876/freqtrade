@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter
@@ -5,6 +6,8 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import HTMLResponse
 from starlette.responses import FileResponse
 
+
+logger = logging.getLogger(__name__)
 
 router_ui = APIRouter(include_in_schema=False, tags=["Web UI"])
 
@@ -195,6 +198,10 @@ async def check_data_page():
 <body>
     <div class="container">
         <h1>📊 Freqtrade Data Check</h1>
+        <div style="background: #2a5a2a; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #4CAF50;">
+            <strong>⚠️ Important:</strong> You must be logged into FreqUI first! 
+            Open <a href="/" style="color: #4CAF50;">FreqUI</a> in another tab, login, then come back to this page.
+        </div>
         
         <div class="form-group">
             <label for="pair">Trading Pair</label>
@@ -270,6 +277,29 @@ async def check_data_page():
     </div>
     
     <script>
+        // Get JWT token from localStorage (FreqUI stores it here)
+        function getAuthToken() {
+            // Try common localStorage keys used by FreqUI
+            const tokenKeys = ['access_token', 'token', 'jwt_token', 'auth_token'];
+            for (const key of tokenKeys) {
+                const token = localStorage.getItem(key);
+                if (token) {
+                    return token;
+                }
+            }
+            // Also check for keys with prefixes
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('token') || key.includes('auth'))) {
+                    const token = localStorage.getItem(key);
+                    if (token && token.startsWith('eyJ')) { // JWT tokens start with 'eyJ'
+                        return token;
+                    }
+                }
+            }
+            return null;
+        }
+        
         async function checkData() {
             const pair = document.getElementById('pair').value.trim();
             const timeframe = document.getElementById('timeframe').value;
@@ -293,27 +323,62 @@ async def check_data_page():
                     url += `&timerange=${encodeURIComponent(timerange)}`;
                 }
                 
-                // Get credentials from browser (if available) or prompt
+                // Prepare headers
+                const headers = {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                };
+                
+                // Try to get JWT token from localStorage
+                const token = getAuthToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                // Make request with credentials
                 const response = await fetch(url, {
+                    method: 'GET',
                     credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
+                    headers: headers
                 });
                 
                 if (!response.ok) {
                     if (response.status === 401) {
-                        throw new Error('Authentication required. Please login to FreqUI first.');
+                        // Try to get token from sessionStorage or prompt for credentials
+                        const sessionToken = sessionStorage.getItem('access_token') || 
+                                           sessionStorage.getItem('token');
+                        if (sessionToken && !token) {
+                            // Retry with session token
+                            headers['Authorization'] = `Bearer ${sessionToken}`;
+                            const retryResponse = await fetch(url, {
+                                method: 'GET',
+                                credentials: 'include',
+                                headers: headers
+                            });
+                            if (retryResponse.ok) {
+                                const data = await retryResponse.json();
+                                displayResults(data);
+                                return;
+                            }
+                        }
+                        throw new Error('Authentication required. Please login to FreqUI first, then refresh this page.');
                     }
                     const errorText = await response.text();
-                    throw new Error(`Error: ${response.status} - ${errorText}`);
+                    let errorMsg = `Error: ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.detail || errorMsg;
+                    } catch (e) {
+                        errorMsg = errorText || errorMsg;
+                    }
+                    throw new Error(errorMsg);
                 }
                 
                 const data = await response.json();
                 displayResults(data);
                 
             } catch (error) {
-                showError(error.message || 'Failed to check data. Make sure you are logged in to FreqUI.');
+                showError(error.message || 'Failed to check data. Make sure you are logged in to FreqUI first.');
             } finally {
                 document.getElementById('loading').classList.remove('show');
                 document.getElementById('checkBtn').disabled = false;
@@ -400,5 +465,154 @@ async def index_html(rest_of_path: str):
     index_file = uibase / "index.html"
     if not index_file.is_file():
         return FileResponse(str(uibase.parent / "fallback_file.html"))
+    
+    # Inject navigation script into index.html for FreqUI
+    if rest_of_path == "" or rest_of_path == "/":
+        try:
+            with open(index_file, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Check if injection script already exists
+            if "freqtrade-check-data-nav" not in content:
+                # Inject script before closing </body> tag
+                injection_script = """
+    <!-- Freqtrade Check Data Navigation Injection -->
+    <script>
+    (function() {
+        // Wait for Vue app to load
+        function injectCheckDataNav() {
+            // Try multiple selectors for navigation (FreqUI may use different structures)
+            const navSelectors = [
+                'nav',
+                '[role="navigation"]',
+                '.navbar',
+                '.nav',
+                'header nav',
+                '.v-toolbar',
+                '.toolbar'
+            ];
+            
+            let navElement = null;
+            for (const selector of navSelectors) {
+                const elements = document.querySelectorAll(selector);
+                for (const el of elements) {
+                    // Look for navigation that contains links like "Chart", "Backtest", etc.
+                    const text = el.textContent || '';
+                    if (text.includes('Chart') || text.includes('Backtest') || text.includes('Download')) {
+                        navElement = el;
+                        break;
+                    }
+                }
+                if (navElement) break;
+            }
+            
+            // Alternative: Look for router-link or anchor elements
+            if (!navElement) {
+                const links = document.querySelectorAll('a, [role="link"], router-link');
+                for (const link of links) {
+                    const href = link.getAttribute('href') || link.getAttribute('to') || '';
+                    if (href.includes('/backtest') || href.includes('/download')) {
+                        navElement = link.parentElement;
+                        break;
+                    }
+                }
+            }
+            
+            // If still not found, try to find by text content
+            if (!navElement) {
+                const allElements = document.querySelectorAll('*');
+                for (const el of allElements) {
+                    const text = el.textContent || '';
+                    if ((text.includes('Chart') || text.includes('Backtest')) && 
+                        (el.tagName === 'NAV' || el.tagName === 'DIV' || el.tagName === 'UL')) {
+                        navElement = el;
+                        break;
+                    }
+                }
+            }
+            
+            if (navElement && !document.getElementById('freqtrade-check-data-link')) {
+                // Create the Check Data link
+                const checkDataLink = document.createElement('a');
+                checkDataLink.id = 'freqtrade-check-data-link';
+                checkDataLink.href = '/check-data';
+                checkDataLink.textContent = 'Check Data';
+                checkDataLink.style.cssText = 'color: inherit; text-decoration: none; padding: 8px 16px; display: inline-block;';
+                
+                // Try to match existing link styles
+                const existingLinks = navElement.querySelectorAll('a, [role="link"]');
+                if (existingLinks.length > 0) {
+                    const firstLink = existingLinks[0];
+                    const computedStyle = window.getComputedStyle(firstLink);
+                    checkDataLink.style.color = computedStyle.color;
+                    checkDataLink.style.fontSize = computedStyle.fontSize;
+                    checkDataLink.style.fontFamily = computedStyle.fontFamily;
+                    checkDataLink.style.padding = computedStyle.padding || '8px 16px';
+                    checkDataLink.style.margin = computedStyle.margin || '0 4px';
+                }
+                
+                // Try to insert after "Download Data" or "Backtest" link
+                let inserted = false;
+                const linkTexts = ['Download Data', 'Backtest', 'Download', 'Pairlist'];
+                for (const linkText of linkTexts) {
+                    const existingLink = Array.from(navElement.querySelectorAll('a, [role="link"]'))
+                        .find(el => (el.textContent || '').includes(linkText));
+                    if (existingLink && existingLink.parentElement) {
+                        existingLink.parentElement.insertAdjacentElement('afterend', checkDataLink.parentElement || checkDataLink);
+                        inserted = true;
+                        break;
+                    }
+                }
+                
+                // If not inserted, append to nav element
+                if (!inserted) {
+                    if (navElement.tagName === 'UL') {
+                        const li = document.createElement('li');
+                        li.appendChild(checkDataLink);
+                        navElement.appendChild(li);
+                    } else {
+                        navElement.appendChild(checkDataLink);
+                    }
+                }
+            }
+        }
+        
+        // Try multiple times as Vue app loads asynchronously
+        let attempts = 0;
+        const maxAttempts = 10;
+        const interval = setInterval(() => {
+            attempts++;
+            injectCheckDataNav();
+            if (document.getElementById('freqtrade-check-data-link') || attempts >= maxAttempts) {
+                clearInterval(interval);
+            }
+        }, 500);
+        
+        // Also try on DOMContentLoaded and after a delay
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', injectCheckDataNav);
+        } else {
+            injectCheckDataNav();
+        }
+        
+        // Try again after Vue might have loaded
+        setTimeout(injectCheckDataNav, 2000);
+    })();
+    </script>
+"""
+                # Insert before closing </body> tag
+                if "</body>" in content:
+                    content = content.replace("</body>", injection_script + "\n</body>")
+                elif "</html>" in content:
+                    content = content.replace("</html>", injection_script + "\n</html>")
+                else:
+                    content += injection_script
+            
+            return HTMLResponse(content=content)
+        except Exception as e:
+            # If injection fails, fall back to regular file serving
+            logger.warning(f"Failed to inject navigation script: {e}")
+            return FileResponse(str(index_file))
+    
     # Fall back to index.html, as indicated by vue router docs
     return FileResponse(str(index_file))
