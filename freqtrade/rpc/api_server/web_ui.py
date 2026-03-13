@@ -479,124 +479,216 @@ async def index_html(rest_of_path: str):
     <!-- Freqtrade Check Data Navigation Injection -->
     <script>
     (function() {
-        // Wait for Vue app to load
-        function injectCheckDataNav() {
-            // Try multiple selectors for navigation (FreqUI may use different structures)
-            const navSelectors = [
-                'nav',
-                '[role="navigation"]',
-                '.navbar',
-                '.nav',
-                'header nav',
-                '.v-toolbar',
-                '.toolbar'
-            ];
+        console.log('[Freqtrade] Check Data navigation injection script loaded');
+        
+        function findNavigationContainer() {
+            // Strategy 1: Look for elements containing navigation text
+            const searchTexts = ['Chart', 'Backtest', 'Download Data', 'Pairlist', 'Config'];
+            const allElements = document.querySelectorAll('*');
             
-            let navElement = null;
-            for (const selector of navSelectors) {
+            for (const el of allElements) {
+                const text = (el.textContent || '').trim();
+                const hasMultipleNavItems = searchTexts.filter(t => text.includes(t)).length >= 2;
+                
+                if (hasMultipleNavItems) {
+                    // Check if it's a navigation-like element
+                    const tagName = el.tagName.toLowerCase();
+                    const role = el.getAttribute('role');
+                    const className = el.className || '';
+                    
+                    if (tagName === 'nav' || 
+                        tagName === 'div' || 
+                        tagName === 'ul' ||
+                        role === 'navigation' ||
+                        className.includes('nav') ||
+                        className.includes('menu') ||
+                        className.includes('toolbar')) {
+                        console.log('[Freqtrade] Found navigation container:', el);
+                        return el;
+                    }
+                }
+            }
+            
+            // Strategy 2: Look for links with specific hrefs
+            const navLinks = ['/backtest', '/download', '/pairlist'];
+            for (const linkText of navLinks) {
+                const links = Array.from(document.querySelectorAll('a, [role="link"], router-link'));
+                const matchingLink = links.find(link => {
+                    const href = (link.getAttribute('href') || link.getAttribute('to') || '').toLowerCase();
+                    return href.includes(linkText);
+                });
+                
+                if (matchingLink) {
+                    // Walk up the DOM tree to find container
+                    let parent = matchingLink.parentElement;
+                    let depth = 0;
+                    while (parent && depth < 5) {
+                        const siblings = Array.from(parent.children || []);
+                        const navLinkCount = siblings.filter(s => {
+                            const sText = (s.textContent || '').toLowerCase();
+                            return searchTexts.some(t => sText.includes(t.toLowerCase()));
+                        }).length;
+                        
+                        if (navLinkCount >= 2) {
+                            console.log('[Freqtrade] Found navigation container via link parent:', parent);
+                            return parent;
+                        }
+                        parent = parent.parentElement;
+                        depth++;
+                    }
+                }
+            }
+            
+            // Strategy 3: Look for header/toolbar elements
+            const headerSelectors = ['header', '.v-toolbar', '.toolbar', '[role="banner"]'];
+            for (const selector of headerSelectors) {
                 const elements = document.querySelectorAll(selector);
                 for (const el of elements) {
-                    // Look for navigation that contains links like "Chart", "Backtest", etc.
-                    const text = el.textContent || '';
-                    if (text.includes('Chart') || text.includes('Backtest') || text.includes('Download')) {
-                        navElement = el;
-                        break;
-                    }
-                }
-                if (navElement) break;
-            }
-            
-            // Alternative: Look for router-link or anchor elements
-            if (!navElement) {
-                const links = document.querySelectorAll('a, [role="link"], router-link');
-                for (const link of links) {
-                    const href = link.getAttribute('href') || link.getAttribute('to') || '';
-                    if (href.includes('/backtest') || href.includes('/download')) {
-                        navElement = link.parentElement;
-                        break;
+                    const text = (el.textContent || '').trim();
+                    if (searchTexts.filter(t => text.includes(t)).length >= 2) {
+                        console.log('[Freqtrade] Found navigation container via header:', el);
+                        return el;
                     }
                 }
             }
             
-            // If still not found, try to find by text content
-            if (!navElement) {
-                const allElements = document.querySelectorAll('*');
-                for (const el of allElements) {
-                    const text = el.textContent || '';
-                    if ((text.includes('Chart') || text.includes('Backtest')) && 
-                        (el.tagName === 'NAV' || el.tagName === 'DIV' || el.tagName === 'UL')) {
-                        navElement = el;
-                        break;
-                    }
-                }
-            }
-            
-            if (navElement && !document.getElementById('freqtrade-check-data-link')) {
-                // Create the Check Data link
-                const checkDataLink = document.createElement('a');
-                checkDataLink.id = 'freqtrade-check-data-link';
-                checkDataLink.href = '/check-data';
-                checkDataLink.textContent = 'Check Data';
-                checkDataLink.style.cssText = 'color: inherit; text-decoration: none; padding: 8px 16px; display: inline-block;';
-                
-                // Try to match existing link styles
-                const existingLinks = navElement.querySelectorAll('a, [role="link"]');
-                if (existingLinks.length > 0) {
-                    const firstLink = existingLinks[0];
-                    const computedStyle = window.getComputedStyle(firstLink);
-                    checkDataLink.style.color = computedStyle.color;
-                    checkDataLink.style.fontSize = computedStyle.fontSize;
-                    checkDataLink.style.fontFamily = computedStyle.fontFamily;
-                    checkDataLink.style.padding = computedStyle.padding || '8px 16px';
-                    checkDataLink.style.margin = computedStyle.margin || '0 4px';
-                }
-                
-                // Try to insert after "Download Data" or "Backtest" link
-                let inserted = false;
-                const linkTexts = ['Download Data', 'Backtest', 'Download', 'Pairlist'];
-                for (const linkText of linkTexts) {
-                    const existingLink = Array.from(navElement.querySelectorAll('a, [role="link"]'))
-                        .find(el => (el.textContent || '').includes(linkText));
-                    if (existingLink && existingLink.parentElement) {
-                        existingLink.parentElement.insertAdjacentElement('afterend', checkDataLink.parentElement || checkDataLink);
-                        inserted = true;
-                        break;
-                    }
-                }
-                
-                // If not inserted, append to nav element
-                if (!inserted) {
-                    if (navElement.tagName === 'UL') {
-                        const li = document.createElement('li');
-                        li.appendChild(checkDataLink);
-                        navElement.appendChild(li);
-                    } else {
-                        navElement.appendChild(checkDataLink);
-                    }
-                }
-            }
+            console.warn('[Freqtrade] Could not find navigation container');
+            return null;
         }
         
-        // Try multiple times as Vue app loads asynchronously
-        let attempts = 0;
-        const maxAttempts = 10;
-        const interval = setInterval(() => {
-            attempts++;
+        function createCheckDataLink() {
+            const link = document.createElement('a');
+            link.id = 'freqtrade-check-data-link';
+            link.href = '/check-data';
+            link.textContent = 'Check Data';
+            link.setAttribute('data-freqtrade-injected', 'true');
+            
+            // Base styles
+            link.style.cssText = `
+                color: inherit;
+                text-decoration: none;
+                padding: 8px 16px;
+                display: inline-block;
+                cursor: pointer;
+                transition: opacity 0.2s;
+            `;
+            
+            link.onmouseover = function() { this.style.opacity = '0.7'; };
+            link.onmouseout = function() { this.style.opacity = '1'; };
+            
+            return link;
+        }
+        
+        function injectCheckDataNav() {
+            // Skip if already injected
+            if (document.getElementById('freqtrade-check-data-link')) {
+                return true;
+            }
+            
+            const navContainer = findNavigationContainer();
+            if (!navContainer) {
+                return false;
+            }
+            
+            // Find existing navigation links
+            const allLinks = Array.from(navContainer.querySelectorAll('a, [role="link"], router-link'));
+            const navLinkTexts = ['Download Data', 'Backtest', 'Download', 'Pairlist', 'Config'];
+            
+            // Find a reference link to insert after
+            let referenceLink = null;
+            for (const linkText of navLinkTexts) {
+                referenceLink = allLinks.find(link => {
+                    const text = (link.textContent || '').trim();
+                    return text.includes(linkText);
+                });
+                if (referenceLink) break;
+            }
+            
+            const checkDataLink = createCheckDataLink();
+            
+            // Try to match styles from existing links
+            if (allLinks.length > 0) {
+                const refLink = referenceLink || allLinks[0];
+                const computedStyle = window.getComputedStyle(refLink);
+                checkDataLink.style.color = computedStyle.color;
+                checkDataLink.style.fontSize = computedStyle.fontSize;
+                checkDataLink.style.fontFamily = computedStyle.fontFamily;
+                checkDataLink.style.fontWeight = computedStyle.fontWeight;
+                checkDataLink.style.padding = computedStyle.padding || '8px 16px';
+                checkDataLink.style.margin = computedStyle.margin || '0 4px';
+            }
+            
+            // Insert the link
+            if (referenceLink && referenceLink.parentElement) {
+                // Insert after the reference link's parent (for list items)
+                const parent = referenceLink.parentElement;
+                if (parent.tagName === 'LI') {
+                    const newLi = document.createElement('li');
+                    newLi.appendChild(checkDataLink);
+                    parent.insertAdjacentElement('afterend', newLi);
+                } else {
+                    referenceLink.insertAdjacentElement('afterend', checkDataLink);
+                }
+                console.log('[Freqtrade] Check Data link inserted after:', referenceLink.textContent);
+            } else {
+                // Append to container
+                if (navContainer.tagName === 'UL') {
+                    const li = document.createElement('li');
+                    li.appendChild(checkDataLink);
+                    navContainer.appendChild(li);
+                } else {
+                    navContainer.appendChild(checkDataLink);
+                }
+                console.log('[Freqtrade] Check Data link appended to container');
+            }
+            
+            return true;
+        }
+        
+        // Use MutationObserver to watch for DOM changes (Vue dynamic rendering)
+        const observer = new MutationObserver(function(mutations) {
+            if (!document.getElementById('freqtrade-check-data-link')) {
+                injectCheckDataNav();
+            }
+        });
+        
+        // Start observing when DOM is ready
+        function startObserving() {
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            console.log('[Freqtrade] MutationObserver started');
+        }
+        
+        // Try injection immediately
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                injectCheckDataNav();
+                startObserving();
+            });
+        } else {
             injectCheckDataNav();
-            if (document.getElementById('freqtrade-check-data-link') || attempts >= maxAttempts) {
+            startObserving();
+        }
+        
+        // Also try at intervals (fallback)
+        let attempts = 0;
+        const maxAttempts = 20;
+        const interval = setInterval(function() {
+            attempts++;
+            if (injectCheckDataNav() || attempts >= maxAttempts) {
                 clearInterval(interval);
+                if (attempts >= maxAttempts && !document.getElementById('freqtrade-check-data-link')) {
+                    console.warn('[Freqtrade] Failed to inject Check Data link after', maxAttempts, 'attempts');
+                }
             }
         }, 500);
         
-        // Also try on DOMContentLoaded and after a delay
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', injectCheckDataNav);
-        } else {
-            injectCheckDataNav();
-        }
-        
-        // Try again after Vue might have loaded
-        setTimeout(injectCheckDataNav, 2000);
+        // Try again after longer delays (Vue might load slowly)
+        setTimeout(injectCheckDataNav, 1000);
+        setTimeout(injectCheckDataNav, 3000);
+        setTimeout(injectCheckDataNav, 5000);
     })();
     </script>
 """
