@@ -588,6 +588,28 @@ class AvailablePairs(BaseModel):
     pair_interval: list[list[str]]
 
 
+class DataGap(BaseModel):
+    start: str
+    end: str
+    missing_candles: int
+    zero_volume_candles: int
+
+
+class DataCheckResult(BaseModel):
+    pair: str
+    timeframe: str
+    timerange: str | None
+    data_start: str | None
+    data_end: str | None
+    total_candles: int
+    expected_candles: int | None
+    missing_candles: int
+    zero_volume_candles: int
+    completeness_percent: float
+    gaps: list[DataGap]
+    status: str  # "complete", "incomplete", "missing", "empty"
+
+
 class PairCandlesRequest(BaseModel):
     pair: str
     timeframe: str
