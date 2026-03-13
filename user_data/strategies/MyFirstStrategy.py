@@ -60,13 +60,14 @@ class MyFirstStrategy(IStrategy):
 
     # Minimal ROI designed for the strategy
     minimal_roi = {
-        "60": 0.01,  # Exit after 60 minutes if profit is 1%
-        "30": 0.02,  # Exit after 30 minutes if profit is 2%
-        "0": 0.04    # Exit immediately if profit is 4%
+        "40": 0.0,
+        "30": 0.003,
+        "20": 0.005,
+        "0": 0.01
     }
 
     # Optimal stoploss designed for the strategy
-    stoploss = -0.10  # Stop loss at -10%
+    stoploss = -0.02  # Stop loss at -2%
 
     # Trailing stoploss
     trailing_stop = False
