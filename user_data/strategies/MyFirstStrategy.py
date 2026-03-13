@@ -93,16 +93,16 @@ class MyFirstStrategy(IStrategy):
         # Main plot indicators (shown on price chart)
         # These overlay on the candlestick chart
         "main_plot": {
-            "ema_20": {"color": "blue", "type": "line"},
-            "ema_50": {"color": "orange", "type": "line"},
+            "ema_20": {"color": "blue"},
+            "ema_50": {"color": "orange"},
             # Bollinger Bands are automatically shown if bb_lowerband/bb_upperband exist
         },
         # Subplots (shown below main chart in separate panels)
         "subplots": {
             "RSI": {
                 "rsi": {"color": "red"},
-                "rsi_buy": {"color": "green", "type": "line"},  # Buy threshold line
-                "rsi_sell": {"color": "red", "type": "line"},   # Sell threshold line
+                "rsi_buy": {"color": "green"},  # Buy threshold line
+                "rsi_sell": {"color": "red"},   # Sell threshold line
             },
             "MACD": {
                 "macd": {"color": "blue"},
