@@ -53,7 +53,8 @@ class MyFirstStrategy(IStrategy):
     INTERFACE_VERSION = 3
 
     # Optimal timeframe for the strategy
-    timeframe = "5m"
+    # 1m scalping – make sure your config timeframe matches this.
+    timeframe = "1m"
 
     # Can this strategy go short?
     can_short: bool = False
@@ -81,7 +82,8 @@ class MyFirstStrategy(IStrategy):
     ignore_roi_if_entry_signal = False
 
     # Number of candles the strategy requires before producing valid signals
-    startup_candle_count: int = 30
+    # Need enough candles to warm up EMA200 etc. on 1m.
+    startup_candle_count: int = 240
 
     # Strategy parameters (can be optimized with hyperopt)
     buy_rsi = IntParameter(10, 40, default=30, space="buy", optimize=True, load=True)
@@ -137,12 +139,21 @@ class MyFirstStrategy(IStrategy):
         # Moving Averages (shown on main price chart)
         dataframe["ema_20"] = ta.EMA(dataframe, timeperiod=20)
         dataframe["ema_50"] = ta.EMA(dataframe, timeperiod=50)
+        dataframe["ema_200"] = ta.EMA(dataframe, timeperiod=200)
         
         # MACD (shown in subplot)
         macd = ta.MACD(dataframe)
         dataframe["macd"] = macd["macd"]
         dataframe["macdsignal"] = macd["macdsignal"]
         dataframe["macdhist"] = macd["macdhist"]
+
+        # Basic 1m trend filter:
+        # - Price above EMA200
+        # - Short EMA above long EMA (20 > 50)
+        dataframe["trend_up"] = (
+            (dataframe["close"] > dataframe["ema_200"]) &
+            (dataframe["ema_20"] > dataframe["ema_50"])
+        )
         
         # Optional: Bollinger Bands (shown on main chart as shaded area)
         # Uncomment if you want to see Bollinger Bands:
@@ -160,12 +171,20 @@ class MyFirstStrategy(IStrategy):
         :param metadata: Additional information, like the currently traded pair
         :return: DataFrame with entry columns populated
         """
-        dataframe.loc[
-            (
-                (qtpylib.crossed_above(dataframe["rsi"], self.buy_rsi.value)) &  # RSI crosses above buy threshold
-                (dataframe["volume"] > 0)  # Make sure Volume is not 0
-            ),
-            "enter_long"] = 1
+        # 1m scalping entry – avoid catching falling knives:
+        # - Overall uptrend (trend_up from indicators)
+        # - RSI crosses above buy threshold from below (momentum turning up)
+        # - Current candle is bullish (close > open)
+        # - Price not far below EMA20 (no vertical dump)
+        buy_cond = (
+            qtpylib.crossed_above(dataframe["rsi"], self.buy_rsi.value) &
+            (dataframe["volume"] > 0) &
+            (dataframe["trend_up"]) &
+            (dataframe["close"] > dataframe["open"]) &
+            ((dataframe["close"] >= dataframe["ema_20"] * 0.995))
+        )
+
+        dataframe.loc[buy_cond, "enter_long"] = 1
 
         return dataframe
 
