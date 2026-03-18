@@ -128,20 +128,37 @@ class SupertrendScalp(IStrategy):
         direction = pd.Series(index=df.index, data=1, dtype="int8")
         supertrend = pd.Series(index=df.index, data=np.nan, dtype="float64")
 
-        for i in range(1, len(df)):
+        # Find first index where ATR is valid - before that supertrend cannot be computed.
+        first_valid = int(atr.first_valid_index()) if atr.first_valid_index() is not None else len(df)
+
+        # Seed initial values at first_valid to avoid NaN propagation.
+        if 0 <= first_valid < len(df):
+            final_ub.iat[first_valid] = basic_ub.iat[first_valid]
+            final_lb.iat[first_valid] = basic_lb.iat[first_valid]
+            direction.iat[first_valid] = 1
+            supertrend.iat[first_valid] = final_lb.iat[first_valid]
+
+        for i in range(first_valid + 1, len(df)):
             # Final upper band
-            if (basic_ub.iat[i] < final_ub.iat[i - 1]) or (df["close"].iat[i - 1] > final_ub.iat[i - 1]):
+            prev_final_ub = final_ub.iat[i - 1]
+            if np.isnan(prev_final_ub):
+                final_ub.iat[i] = basic_ub.iat[i]
+            elif (basic_ub.iat[i] < prev_final_ub) or (df["close"].iat[i - 1] > prev_final_ub):
                 final_ub.iat[i] = basic_ub.iat[i]
             else:
                 final_ub.iat[i] = final_ub.iat[i - 1]
 
             # Final lower band
-            if (basic_lb.iat[i] > final_lb.iat[i - 1]) or (df["close"].iat[i - 1] < final_lb.iat[i - 1]):
+            prev_final_lb = final_lb.iat[i - 1]
+            if np.isnan(prev_final_lb):
+                final_lb.iat[i] = basic_lb.iat[i]
+            elif (basic_lb.iat[i] > prev_final_lb) or (df["close"].iat[i - 1] < prev_final_lb):
                 final_lb.iat[i] = basic_lb.iat[i]
             else:
                 final_lb.iat[i] = final_lb.iat[i - 1]
 
             # Direction
+            # Use previous bands for direction decision (common supertrend definition)
             if df["close"].iat[i] > final_ub.iat[i - 1]:
                 direction.iat[i] = 1
             elif df["close"].iat[i] < final_lb.iat[i - 1]:
