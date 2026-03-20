@@ -57,21 +57,21 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     # Supertrend filter
     # -----------------------------
-    use_supertrend = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    use_supertrend = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     st_atr_period = IntParameter(7, 20, default=10, space="buy", optimize=True, load=True)
     st_multiplier = DecimalParameter(1.5, 5.0, default=3.0, decimals=1, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # ADX filter
     # -----------------------------
-    use_adx_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    use_adx_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     adx_period = IntParameter(7, 30, default=14, space="buy", optimize=True, load=True)
     adx_threshold = IntParameter(15, 30, default=20, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # RSI filter
     # -----------------------------
-    use_rsi_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    use_rsi_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     rsi_period = IntParameter(7, 21, default=14, space="buy", optimize=True, load=True)
     rsi_overbought = IntParameter(65, 80, default=75, space="buy", optimize=True, load=True)
     rsi_oversold = IntParameter(20, 35, default=25, space="buy", optimize=True, load=True)
