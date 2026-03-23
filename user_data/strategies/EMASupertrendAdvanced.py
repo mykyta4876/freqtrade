@@ -55,6 +55,8 @@ class EMASupertrendAdvanced(IStrategy):
     ema_trend = IntParameter(100, 250, default=200, space="buy", optimize=True, load=True)
     use_trend_guard = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     cross_lookback = IntParameter(1, 10, default=5, space="buy", optimize=True, load=True)
+    use_recent_cross_confirm = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    require_nonzero_volume = BooleanParameter(default=False, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # Supertrend filter
@@ -258,19 +260,22 @@ class EMASupertrendAdvanced(IStrategy):
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Core signals: EMA regime with optional crossover-recent confirmation.
+        # Core signals: EMA regime, optionally requiring a recent crossover.
         ema_above = dataframe["ema_fast"] > dataframe["ema_slow"]
         ema_below = dataframe["ema_fast"] < dataframe["ema_slow"]
-        lb = int(self.cross_lookback.value)
-        cross_up_recent = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
-            lb, min_periods=1
-        ).max() > 0
-        cross_down_recent = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
-            lb, min_periods=1
-        ).max() > 0
-
-        long_signal = ema_above & cross_up_recent
-        short_signal = ema_below & cross_down_recent
+        if self.use_recent_cross_confirm.value:
+            lb = int(self.cross_lookback.value)
+            cross_up_recent = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
+                lb, min_periods=1
+            ).max() > 0
+            cross_down_recent = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
+                lb, min_periods=1
+            ).max() > 0
+            long_signal = ema_above & cross_up_recent
+            short_signal = ema_below & cross_down_recent
+        else:
+            long_signal = ema_above
+            short_signal = ema_below
 
         # Trend guards to avoid early counter-trend entries
         if self.use_trend_guard.value:
@@ -331,9 +336,14 @@ class EMASupertrendAdvanced(IStrategy):
         filters_pass_long = score_long >= required
         filters_pass_short = score_short >= required
 
+        if self.require_nonzero_volume.value:
+            volume_ok = dataframe["volume"] > 0
+        else:
+            volume_ok = pd.Series(True, index=dataframe.index)
+
         dataframe.loc[
             (
-                (dataframe["volume"] > 0)
+                volume_ok
                 & long_signal
                 & trend_guard_long
                 & filters_pass_long
@@ -343,7 +353,7 @@ class EMASupertrendAdvanced(IStrategy):
 
         dataframe.loc[
             (
-                (dataframe["volume"] > 0)
+                volume_ok
                 & short_signal
                 & trend_guard_short
                 & filters_pass_short
@@ -368,16 +378,21 @@ class EMASupertrendAdvanced(IStrategy):
             exit_long_cond = ema_cross_down
             exit_short_cond = ema_cross_up
 
+        if self.require_nonzero_volume.value:
+            volume_ok = dataframe["volume"] > 0
+        else:
+            volume_ok = pd.Series(True, index=dataframe.index)
+
         dataframe.loc[
             (
-                (dataframe["volume"] > 0)
+                volume_ok
                 & exit_long_cond
             ),
             "exit_long",
         ] = 1
         dataframe.loc[
             (
-                (dataframe["volume"] > 0)
+                volume_ok
                 & exit_short_cond
             ),
             "exit_short",
