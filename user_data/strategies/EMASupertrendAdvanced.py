@@ -25,11 +25,11 @@ class EMASupertrendAdvanced(IStrategy):
     """
     EMA crossover + Supertrend + multi-filter strategy.
 
-    Long-only implementation for spot trading (can_short = False).
+    Dual-direction implementation (long + short).
     """
 
     INTERFACE_VERSION = 3
-    can_short: bool = False
+    can_short: bool = True
     timeframe = "1m"
     startup_candle_count: int = 300
 
@@ -256,79 +256,115 @@ class EMASupertrendAdvanced(IStrategy):
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Core buy signal: EMA fast crosses above EMA slow
+        # Core signals: EMA crossover
         ema_cross_up = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"])
+        ema_cross_down = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"])
 
-        # Keep entries aligned with higher trend to avoid early downtrend catches
-        trend_guard = dataframe["close"] > dataframe["ema_trend"]
+        # Trend guards to avoid early counter-trend entries
+        trend_guard_long = dataframe["close"] > dataframe["ema_trend"]
+        trend_guard_short = dataframe["close"] < dataframe["ema_trend"]
 
-        # Individual filters (long side)
-        st_ok = dataframe["st_dir"] == 1
+        # Individual filters
+        st_ok_long = dataframe["st_dir"] == 1
+        st_ok_short = dataframe["st_dir"] == -1
         adx_ok = dataframe["adx"] >= self.adx_threshold.value
-        rsi_ok = (dataframe["rsi"] < self.rsi_overbought.value) & (dataframe["rsi"] > self.rsi_oversold.value)
+        rsi_ok_long = (dataframe["rsi"] < self.rsi_overbought.value) & (dataframe["rsi"] > self.rsi_oversold.value)
+        rsi_ok_short = (dataframe["rsi"] < self.rsi_overbought.value) & (dataframe["rsi"] > self.rsi_oversold.value)
         vol_ok = dataframe["volume"] > (dataframe["volume_ma"] * float(self.volume_mult.value))
 
         bb_mode = self.bb_mode.value
         if bb_mode == "avoid_extremes":
-            bb_ok = (dataframe["bb_percent"] > 0.10) & (dataframe["bb_percent"] < 0.90)
+            bb_ok_long = (dataframe["bb_percent"] > 0.10) & (dataframe["bb_percent"] < 0.90)
+            bb_ok_short = (dataframe["bb_percent"] > 0.10) & (dataframe["bb_percent"] < 0.90)
         elif bb_mode == "squeeze_only":
-            bb_ok = dataframe["bb_width"] <= float(self.bb_squeeze_width.value)
+            bb_ok_long = dataframe["bb_width"] <= float(self.bb_squeeze_width.value)
+            bb_ok_short = dataframe["bb_width"] <= float(self.bb_squeeze_width.value)
         elif bb_mode == "trend_position":
-            bb_ok = dataframe["close"] > dataframe["bb_middleband"]
+            bb_ok_long = dataframe["close"] > dataframe["bb_middleband"]
+            bb_ok_short = dataframe["close"] < dataframe["bb_middleband"]
         else:  # wide_bands
-            bb_ok = dataframe["bb_width"] >= float(self.bb_wide_width.value)
+            bb_ok_long = dataframe["bb_width"] >= float(self.bb_wide_width.value)
+            bb_ok_short = dataframe["bb_width"] >= float(self.bb_wide_width.value)
 
         enabled_filters = 0
-        score = pd.Series(index=dataframe.index, data=0, dtype="int64")
+        score_long = pd.Series(index=dataframe.index, data=0, dtype="int64")
+        score_short = pd.Series(index=dataframe.index, data=0, dtype="int64")
 
         if self.use_supertrend.value:
             enabled_filters += 1
-            score += st_ok.astype(int)
+            score_long += st_ok_long.astype(int)
+            score_short += st_ok_short.astype(int)
         if self.use_adx_filter.value:
             enabled_filters += 1
-            score += adx_ok.astype(int)
+            score_long += adx_ok.astype(int)
+            score_short += adx_ok.astype(int)
         if self.use_rsi_filter.value:
             enabled_filters += 1
-            score += rsi_ok.astype(int)
+            score_long += rsi_ok_long.astype(int)
+            score_short += rsi_ok_short.astype(int)
         if self.use_volume_filter.value:
             enabled_filters += 1
-            score += vol_ok.astype(int)
+            score_long += vol_ok.astype(int)
+            score_short += vol_ok.astype(int)
         if self.use_bb_filter.value:
             enabled_filters += 1
-            score += bb_ok.astype(int)
+            score_long += bb_ok_long.astype(int)
+            score_short += bb_ok_short.astype(int)
 
         required = self._required_score(enabled_filters)
-        filters_pass = score >= required
+        filters_pass_long = score_long >= required
+        filters_pass_short = score_short >= required
 
         dataframe.loc[
             (
                 (dataframe["volume"] > 0)
                 & ema_cross_up
-                & trend_guard
-                & filters_pass
+                & trend_guard_long
+                & filters_pass_long
             ),
             "enter_long",
+        ] = 1
+
+        dataframe.loc[
+            (
+                (dataframe["volume"] > 0)
+                & ema_cross_down
+                & trend_guard_short
+                & filters_pass_short
+            ),
+            "enter_short",
         ] = 1
 
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Core sell signal: EMA fast crosses below EMA slow
+        # Core crossover exits
         ema_cross_down = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"])
+        ema_cross_up = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"])
 
-        # Optional supertrend bearish flip as extra exit trigger
+        # Optional supertrend flips as extra exit triggers
         st_bear = dataframe["st_dir"] == -1
+        st_bull = dataframe["st_dir"] == 1
         if self.use_supertrend.value:
-            exit_cond = ema_cross_down | st_bear
+            exit_long_cond = ema_cross_down | st_bear
+            exit_short_cond = ema_cross_up | st_bull
         else:
-            exit_cond = ema_cross_down
+            exit_long_cond = ema_cross_down
+            exit_short_cond = ema_cross_up
 
         dataframe.loc[
             (
                 (dataframe["volume"] > 0)
-                & exit_cond
+                & exit_long_cond
             ),
             "exit_long",
+        ] = 1
+        dataframe.loc[
+            (
+                (dataframe["volume"] > 0)
+                & exit_short_cond
+            ),
+            "exit_short",
         ] = 1
         return dataframe
 
@@ -356,6 +392,10 @@ class EMASupertrendAdvanced(IStrategy):
         atr = last.get("atr", np.nan)
         if np.isnan(atr) or atr <= 0:
             return self.stoploss
+
+        if trade.is_short:
+            stop_price = current_rate + (float(self.atr_sl_mult.value) * atr)
+            return stoploss_from_absolute(stop_price, current_rate=current_rate, is_short=True)
 
         stop_price = current_rate - (float(self.atr_sl_mult.value) * atr)
         return stoploss_from_absolute(stop_price, current_rate=current_rate, is_short=False)
