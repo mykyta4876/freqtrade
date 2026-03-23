@@ -263,6 +263,14 @@ class EMASupertrendAdvanced(IStrategy):
         # Core signals: EMA regime, optionally requiring a recent crossover.
         ema_above = dataframe["ema_fast"] > dataframe["ema_slow"]
         ema_below = dataframe["ema_fast"] < dataframe["ema_slow"]
+        # Momentum fallback handles datasets where EMA relations can stay flat/equal.
+        momentum_up = (dataframe["close"] > dataframe["close"].shift(1)) & (
+            dataframe["close"] > dataframe["ema_fast"]
+        )
+        momentum_down = (dataframe["close"] < dataframe["close"].shift(1)) & (
+            dataframe["close"] < dataframe["ema_fast"]
+        )
+
         if self.use_recent_cross_confirm.value:
             lb = int(self.cross_lookback.value)
             cross_up_recent = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
@@ -271,11 +279,11 @@ class EMASupertrendAdvanced(IStrategy):
             cross_down_recent = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
                 lb, min_periods=1
             ).max() > 0
-            long_signal = ema_above & cross_up_recent
-            short_signal = ema_below & cross_down_recent
+            long_signal = (ema_above & cross_up_recent) | momentum_up
+            short_signal = (ema_below & cross_down_recent) | momentum_down
         else:
-            long_signal = ema_above
-            short_signal = ema_below
+            long_signal = ema_above | momentum_up
+            short_signal = ema_below | momentum_down
 
         # Trend guards to avoid early counter-trend entries
         if self.use_trend_guard.value:
