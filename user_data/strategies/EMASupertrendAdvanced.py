@@ -53,6 +53,8 @@ class EMASupertrendAdvanced(IStrategy):
     ema_fast = IntParameter(5, 20, default=9, space="buy", optimize=True, load=True)
     ema_slow = IntParameter(30, 120, default=60, space="buy", optimize=True, load=True)
     ema_trend = IntParameter(100, 250, default=200, space="buy", optimize=True, load=True)
+    use_trend_guard = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    cross_lookback = IntParameter(1, 10, default=5, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # Supertrend filter
@@ -259,10 +261,25 @@ class EMASupertrendAdvanced(IStrategy):
         # Core signals: EMA crossover
         ema_cross_up = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"])
         ema_cross_down = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"])
+        lb = int(self.cross_lookback.value)
+
+        # Allow entries shortly after crossover while trend relation is still valid.
+        recent_cross_up = (dataframe["ema_fast"] > dataframe["ema_slow"]) & (
+            (dataframe["ema_fast"].shift(lb) <= dataframe["ema_slow"].shift(lb)).fillna(False)
+        )
+        recent_cross_down = (dataframe["ema_fast"] < dataframe["ema_slow"]) & (
+            (dataframe["ema_fast"].shift(lb) >= dataframe["ema_slow"].shift(lb)).fillna(False)
+        )
+        long_signal = ema_cross_up | recent_cross_up
+        short_signal = ema_cross_down | recent_cross_down
 
         # Trend guards to avoid early counter-trend entries
-        trend_guard_long = dataframe["close"] > dataframe["ema_trend"]
-        trend_guard_short = dataframe["close"] < dataframe["ema_trend"]
+        if self.use_trend_guard.value:
+            trend_guard_long = dataframe["close"] > dataframe["ema_trend"]
+            trend_guard_short = dataframe["close"] < dataframe["ema_trend"]
+        else:
+            trend_guard_long = pd.Series(True, index=dataframe.index)
+            trend_guard_short = pd.Series(True, index=dataframe.index)
 
         # Individual filters
         st_ok_long = dataframe["st_dir"] == 1
@@ -318,7 +335,7 @@ class EMASupertrendAdvanced(IStrategy):
         dataframe.loc[
             (
                 (dataframe["volume"] > 0)
-                & ema_cross_up
+                & long_signal
                 & trend_guard_long
                 & filters_pass_long
             ),
@@ -328,7 +345,7 @@ class EMASupertrendAdvanced(IStrategy):
         dataframe.loc[
             (
                 (dataframe["volume"] > 0)
-                & ema_cross_down
+                & short_signal
                 & trend_guard_short
                 & filters_pass_short
             ),
