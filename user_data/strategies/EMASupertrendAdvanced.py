@@ -258,20 +258,19 @@ class EMASupertrendAdvanced(IStrategy):
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Core signals: EMA crossover
-        ema_cross_up = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"])
-        ema_cross_down = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"])
+        # Core signals: EMA regime with optional crossover-recent confirmation.
+        ema_above = dataframe["ema_fast"] > dataframe["ema_slow"]
+        ema_below = dataframe["ema_fast"] < dataframe["ema_slow"]
         lb = int(self.cross_lookback.value)
+        cross_up_recent = qtpylib.crossed_above(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
+            lb, min_periods=1
+        ).max() > 0
+        cross_down_recent = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
+            lb, min_periods=1
+        ).max() > 0
 
-        # Allow entries shortly after crossover while trend relation is still valid.
-        recent_cross_up = (dataframe["ema_fast"] > dataframe["ema_slow"]) & (
-            (dataframe["ema_fast"].shift(lb) <= dataframe["ema_slow"].shift(lb)).fillna(False)
-        )
-        recent_cross_down = (dataframe["ema_fast"] < dataframe["ema_slow"]) & (
-            (dataframe["ema_fast"].shift(lb) >= dataframe["ema_slow"].shift(lb)).fillna(False)
-        )
-        long_signal = ema_cross_up | recent_cross_up
-        short_signal = ema_cross_down | recent_cross_down
+        long_signal = ema_above & cross_up_recent
+        short_signal = ema_below & cross_down_recent
 
         # Trend guards to avoid early counter-trend entries
         if self.use_trend_guard.value:
