@@ -57,6 +57,7 @@ class EMASupertrendAdvanced(IStrategy):
     cross_lookback = IntParameter(1, 10, default=5, space="buy", optimize=True, load=True)
     use_recent_cross_confirm = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     require_nonzero_volume = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    debug_force_entries = BooleanParameter(default=True, space="buy", optimize=False, load=True)
 
     # -----------------------------
     # Supertrend filter
@@ -284,6 +285,11 @@ class EMASupertrendAdvanced(IStrategy):
         else:
             long_signal = ema_above | momentum_up
             short_signal = ema_below | momentum_down
+
+        # Debug mode: force entries by simple candle direction to validate execution pipeline.
+        if self.debug_force_entries.value:
+            long_signal = dataframe["close"] > dataframe["open"]
+            short_signal = dataframe["close"] < dataframe["open"]
 
         # Trend guards to avoid early counter-trend entries
         if self.use_trend_guard.value:
