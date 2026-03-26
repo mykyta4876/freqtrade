@@ -44,8 +44,8 @@ class EMASupertrendAdvanced(IStrategy):
 
     process_only_new_candles = True
     use_exit_signal = True
-    exit_profit_only = False
-    ignore_roi_if_entry_signal = False
+    exit_profit_only = True
+    ignore_roi_if_entry_signal = True
 
     # -----------------------------
     # EMA settings
@@ -125,6 +125,7 @@ class EMASupertrendAdvanced(IStrategy):
 
     use_atr_takeprofit = BooleanParameter(default=True, space="sell", optimize=True, load=True)
     atr_tp_mult = DecimalParameter(1.5, 6.0, default=3.0, decimals=1, space="sell", optimize=True, load=True)
+    min_exit_profit = DecimalParameter(0.001, 0.01, default=0.002, decimals=3, space="sell", optimize=True, load=True)
 
     # Optional stake sizing by risk
     use_risk_position_size = BooleanParameter(default=False, space="buy", optimize=False, load=True)
@@ -391,6 +392,13 @@ class EMASupertrendAdvanced(IStrategy):
         else:
             exit_long_cond = ema_cross_down
             exit_short_cond = ema_cross_up
+
+        # Don't force exit immediately on tiny flips.
+        # This keeps weak signal noise from closing positions at a loss.
+        long_profit_filter = dataframe["close"] >= (dataframe["open"] * (1 + float(self.min_exit_profit.value)))
+        short_profit_filter = dataframe["close"] <= (dataframe["open"] * (1 - float(self.min_exit_profit.value)))
+        exit_long_cond = exit_long_cond & long_profit_filter
+        exit_short_cond = exit_short_cond & short_profit_filter
 
         if self.require_nonzero_volume.value:
             volume_ok = dataframe["volume"] > 0
