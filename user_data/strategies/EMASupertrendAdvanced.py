@@ -57,7 +57,7 @@ class EMASupertrendAdvanced(IStrategy):
     cross_lookback = IntParameter(1, 10, default=5, space="buy", optimize=True, load=True)
     use_recent_cross_confirm = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     require_nonzero_volume = BooleanParameter(default=False, space="buy", optimize=True, load=True)
-    debug_force_entries = BooleanParameter(default=True, space="buy", optimize=False, load=True)
+    debug_force_entries = BooleanParameter(default=False, space="buy", optimize=False, load=True)
 
     # -----------------------------
     # Supertrend filter
