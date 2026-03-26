@@ -155,7 +155,7 @@ class EMASupertrendAdvanced(IStrategy):
             "ADX": {
                 "adx": {"color": "yellow"},
             },
-            "BB Width": {
+            "BB_Width": {
                 "bb_width": {"color": "violet"},
             },
         },
