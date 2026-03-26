@@ -39,7 +39,7 @@ class EMASupertrendAdvanced(IStrategy):
         "5": 0.003,
         "0": 0.002,
     }
-    stoploss = -0.10
+    stoploss = -0.05
     use_custom_stoploss = True
 
     process_only_new_candles = True
@@ -109,7 +109,7 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     filter_mode = CategoricalParameter(
         ["strict", "moderate", "relaxed", "score_based"],
-        default="strict",
+        default="moderate",
         space="buy",
         optimize=True,
         load=True,
