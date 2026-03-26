@@ -35,9 +35,9 @@ class EMASupertrendAdvanced(IStrategy):
 
     # Base protections
     minimal_roi = {
-        "20": 0.004,
-        "10": 0.002,
-        "0": 0.0,
+        "15": 0.005,
+        "5": 0.003,
+        "0": 0.002,
     }
     stoploss = -0.10
     use_custom_stoploss = True
@@ -51,32 +51,32 @@ class EMASupertrendAdvanced(IStrategy):
     # EMA settings
     # -----------------------------
     ema_fast = IntParameter(5, 20, default=9, space="buy", optimize=True, load=True)
-    ema_slow = IntParameter(30, 120, default=60, space="buy", optimize=True, load=True)
+    ema_slow = IntParameter(30, 120, default=55, space="buy", optimize=True, load=True)
     ema_trend = IntParameter(100, 250, default=200, space="buy", optimize=True, load=True)
-    use_trend_guard = BooleanParameter(default=False, space="buy", optimize=True, load=True)
-    cross_lookback = IntParameter(1, 10, default=5, space="buy", optimize=True, load=True)
-    use_recent_cross_confirm = BooleanParameter(default=False, space="buy", optimize=True, load=True)
-    require_nonzero_volume = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    use_trend_guard = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    cross_lookback = IntParameter(1, 10, default=2, space="buy", optimize=True, load=True)
+    use_recent_cross_confirm = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    require_nonzero_volume = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     debug_force_entries = BooleanParameter(default=False, space="buy", optimize=False, load=True)
 
     # -----------------------------
     # Supertrend filter
     # -----------------------------
-    use_supertrend = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    use_supertrend = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     st_atr_period = IntParameter(7, 20, default=10, space="buy", optimize=True, load=True)
     st_multiplier = DecimalParameter(1.5, 5.0, default=3.0, decimals=1, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # ADX filter
     # -----------------------------
-    use_adx_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    use_adx_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     adx_period = IntParameter(7, 30, default=14, space="buy", optimize=True, load=True)
     adx_threshold = IntParameter(15, 30, default=20, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # RSI filter
     # -----------------------------
-    use_rsi_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    use_rsi_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     rsi_period = IntParameter(7, 21, default=14, space="buy", optimize=True, load=True)
     rsi_overbought = IntParameter(65, 80, default=75, space="buy", optimize=True, load=True)
     rsi_oversold = IntParameter(20, 35, default=25, space="buy", optimize=True, load=True)
@@ -109,7 +109,7 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     filter_mode = CategoricalParameter(
         ["strict", "moderate", "relaxed", "score_based"],
-        default="moderate",
+        default="strict",
         space="buy",
         optimize=True,
         load=True,
@@ -121,7 +121,7 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     atr_period = IntParameter(7, 30, default=14, space="sell", optimize=True, load=True)
     use_atr_stoploss = BooleanParameter(default=True, space="sell", optimize=True, load=True)
-    atr_sl_mult = DecimalParameter(1.0, 4.0, default=2.0, decimals=1, space="sell", optimize=True, load=True)
+    atr_sl_mult = DecimalParameter(1.0, 6.0, default=3.5, decimals=1, space="sell", optimize=True, load=True)
 
     use_atr_takeprofit = BooleanParameter(default=True, space="sell", optimize=True, load=True)
     atr_tp_mult = DecimalParameter(1.5, 6.0, default=3.0, decimals=1, space="sell", optimize=True, load=True)
@@ -437,6 +437,10 @@ class EMASupertrendAdvanced(IStrategy):
         atr = last.get("atr", np.nan)
         if np.isnan(atr) or atr <= 0:
             return self.stoploss
+
+        # Avoid ultra-tight stop updates when trade is not yet in clear profit.
+        if current_profit < 0.004:
+            return None
 
         if trade.is_short:
             stop_price = current_rate + (float(self.atr_sl_mult.value) * atr)
