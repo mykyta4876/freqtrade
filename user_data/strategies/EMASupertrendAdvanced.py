@@ -44,7 +44,7 @@ class EMASupertrendAdvanced(IStrategy):
 
     process_only_new_candles = True
     use_exit_signal = True
-    exit_profit_only = True
+    exit_profit_only = False
     ignore_roi_if_entry_signal = True
 
     # -----------------------------
@@ -70,7 +70,7 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     # ADX filter
     # -----------------------------
-    use_adx_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    use_adx_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     adx_period = IntParameter(7, 30, default=14, space="buy", optimize=True, load=True)
     adx_threshold = IntParameter(15, 30, default=20, space="buy", optimize=True, load=True)
     short_adx_threshold = IntParameter(20, 40, default=26, space="buy", optimize=True, load=True)
@@ -78,7 +78,7 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     # RSI filter
     # -----------------------------
-    use_rsi_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    use_rsi_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     rsi_period = IntParameter(7, 21, default=14, space="buy", optimize=True, load=True)
     rsi_overbought = IntParameter(65, 80, default=75, space="buy", optimize=True, load=True)
     rsi_oversold = IntParameter(20, 35, default=25, space="buy", optimize=True, load=True)
@@ -88,7 +88,7 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     # Volume filter
     # -----------------------------
-    use_volume_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    use_volume_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     volume_ma_period = IntParameter(10, 100, default=30, space="buy", optimize=True, load=True)
     volume_mult = DecimalParameter(0.8, 1.5, default=1.05, decimals=2, space="buy", optimize=True, load=True)
 
