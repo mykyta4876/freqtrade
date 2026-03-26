@@ -73,6 +73,7 @@ class EMASupertrendAdvanced(IStrategy):
     use_adx_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     adx_period = IntParameter(7, 30, default=14, space="buy", optimize=True, load=True)
     adx_threshold = IntParameter(15, 30, default=20, space="buy", optimize=True, load=True)
+    short_adx_threshold = IntParameter(20, 40, default=26, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # RSI filter
@@ -81,6 +82,8 @@ class EMASupertrendAdvanced(IStrategy):
     rsi_period = IntParameter(7, 21, default=14, space="buy", optimize=True, load=True)
     rsi_overbought = IntParameter(65, 80, default=75, space="buy", optimize=True, load=True)
     rsi_oversold = IntParameter(20, 35, default=25, space="buy", optimize=True, load=True)
+    short_rsi_max = IntParameter(45, 60, default=52, space="buy", optimize=True, load=True)
+    short_trend_offset = DecimalParameter(0.997, 1.0, default=0.999, decimals=3, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # Volume filter
@@ -300,7 +303,7 @@ class EMASupertrendAdvanced(IStrategy):
         # Trend guards to avoid early counter-trend entries
         if self.use_trend_guard.value:
             trend_guard_long = dataframe["close"] > dataframe["ema_trend"]
-            trend_guard_short = dataframe["close"] < dataframe["ema_trend"]
+            trend_guard_short = dataframe["close"] < (dataframe["ema_trend"] * float(self.short_trend_offset.value))
         else:
             trend_guard_long = pd.Series(True, index=dataframe.index)
             trend_guard_short = pd.Series(True, index=dataframe.index)
@@ -309,8 +312,9 @@ class EMASupertrendAdvanced(IStrategy):
         st_ok_long = dataframe["st_dir"] == 1
         st_ok_short = dataframe["st_dir"] == -1
         adx_ok = dataframe["adx"] >= self.adx_threshold.value
+        adx_ok_short = dataframe["adx"] >= self.short_adx_threshold.value
         rsi_ok_long = (dataframe["rsi"] < self.rsi_overbought.value) & (dataframe["rsi"] > self.rsi_oversold.value)
-        rsi_ok_short = (dataframe["rsi"] < self.rsi_overbought.value) & (dataframe["rsi"] > self.rsi_oversold.value)
+        rsi_ok_short = (dataframe["rsi"] < self.short_rsi_max.value) & (dataframe["rsi"] > self.rsi_oversold.value)
         vol_ok = dataframe["volume"] > (dataframe["volume_ma"] * float(self.volume_mult.value))
 
         bb_mode = self.bb_mode.value
@@ -338,7 +342,7 @@ class EMASupertrendAdvanced(IStrategy):
         if self.use_adx_filter.value:
             enabled_filters += 1
             score_long += adx_ok.astype(int)
-            score_short += adx_ok.astype(int)
+            score_short += adx_ok_short.astype(int)
         if self.use_rsi_filter.value:
             enabled_filters += 1
             score_long += rsi_ok_long.astype(int)
