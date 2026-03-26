@@ -56,6 +56,7 @@ class EMASupertrendAdvanced(IStrategy):
     use_trend_guard = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     cross_lookback = IntParameter(1, 10, default=2, space="buy", optimize=True, load=True)
     use_recent_cross_confirm = BooleanParameter(default=True, space="buy", optimize=True, load=True)
+    use_momentum_fallback = BooleanParameter(default=False, space="buy", optimize=True, load=True)
     require_nonzero_volume = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     debug_force_entries = BooleanParameter(default=False, space="buy", optimize=False, load=True)
 
@@ -84,9 +85,9 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     # Volume filter
     # -----------------------------
-    use_volume_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    use_volume_filter = BooleanParameter(default=True, space="buy", optimize=True, load=True)
     volume_ma_period = IntParameter(10, 100, default=30, space="buy", optimize=True, load=True)
-    volume_mult = DecimalParameter(0.8, 1.5, default=1.0, decimals=2, space="buy", optimize=True, load=True)
+    volume_mult = DecimalParameter(0.8, 1.5, default=1.05, decimals=2, space="buy", optimize=True, load=True)
 
     # -----------------------------
     # Bollinger filter
@@ -109,7 +110,7 @@ class EMASupertrendAdvanced(IStrategy):
     # -----------------------------
     filter_mode = CategoricalParameter(
         ["strict", "moderate", "relaxed", "score_based"],
-        default="moderate",
+        default="strict",
         space="buy",
         optimize=True,
         load=True,
@@ -265,7 +266,7 @@ class EMASupertrendAdvanced(IStrategy):
         # Core signals: EMA regime, optionally requiring a recent crossover.
         ema_above = dataframe["ema_fast"] > dataframe["ema_slow"]
         ema_below = dataframe["ema_fast"] < dataframe["ema_slow"]
-        # Momentum fallback handles datasets where EMA relations can stay flat/equal.
+        # Optional momentum fallback for very sparse signal environments.
         momentum_up = (dataframe["close"] > dataframe["close"].shift(1)) & (
             dataframe["close"] > dataframe["ema_fast"]
         )
@@ -281,11 +282,15 @@ class EMASupertrendAdvanced(IStrategy):
             cross_down_recent = qtpylib.crossed_below(dataframe["ema_fast"], dataframe["ema_slow"]).rolling(
                 lb, min_periods=1
             ).max() > 0
-            long_signal = (ema_above & cross_up_recent) | momentum_up
-            short_signal = (ema_below & cross_down_recent) | momentum_down
+            long_signal = ema_above & cross_up_recent
+            short_signal = ema_below & cross_down_recent
         else:
-            long_signal = ema_above | momentum_up
-            short_signal = ema_below | momentum_down
+            long_signal = ema_above
+            short_signal = ema_below
+
+        if self.use_momentum_fallback.value:
+            long_signal = long_signal | momentum_up
+            short_signal = short_signal | momentum_down
 
         # Debug mode: force entries by simple candle direction to validate execution pipeline.
         if self.debug_force_entries.value:
