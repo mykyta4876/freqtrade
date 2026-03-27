@@ -157,6 +157,7 @@ class EMASupertrendAdvanced(IStrategy):
             },
             "BB_Width": {
                 "bb_width": {"color": "violet"},
+                "bb_width_100": {"color": "deepskyblue"},
             },
         },
     }
@@ -255,6 +256,12 @@ class EMASupertrendAdvanced(IStrategy):
         dataframe["bb_percent"] = (dataframe["close"] - dataframe["bb_lowerband"]) / (
             dataframe["bb_upperband"] - dataframe["bb_lowerband"]
         )
+        # 0..100 normalized BB width (rolling min-max), useful as an oscillator in FreqUI.
+        bb_width_min = dataframe["bb_width"].rolling(200, min_periods=20).min()
+        bb_width_max = dataframe["bb_width"].rolling(200, min_periods=20).max()
+        bb_width_range = (bb_width_max - bb_width_min).replace(0, np.nan)
+        dataframe["bb_width_100"] = ((dataframe["bb_width"] - bb_width_min) / bb_width_range * 100).clip(0, 100)
+        dataframe["bb_width_100"] = dataframe["bb_width_100"].fillna(50)
 
         # Supertrend
         dataframe["supertrend"], dataframe["st_dir"] = self._supertrend(
