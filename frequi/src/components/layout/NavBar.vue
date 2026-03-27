@@ -121,7 +121,6 @@ const navItems = ref([
   {
     label: 'Live Data',
     to: '/live-data',
-    visible: computed(() => !botStore.canRunBacktest),
     icon: 'i-mdi-wifi',
   },
   {
