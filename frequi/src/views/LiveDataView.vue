@@ -40,6 +40,7 @@ function refreshOHLCV(pair: string, columns: string[]) {
     const payload: PairHistoryPayload = {
       pair,
       timeframe: finalTimeframe.value,
+      timerange: chartStore.timerange || '',
       strategy: chartStore.strategy,
       columns,
       live_mode: true,
