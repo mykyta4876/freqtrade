@@ -76,6 +76,14 @@ class EMASupertrendAdvanced(IStrategy):
     short_adx_threshold = IntParameter(20, 40, default=26, space="buy", optimize=True, load=True)
 
     # -----------------------------
+    # Aroon Oscillator filter
+    # -----------------------------
+    use_aroon_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
+    aroon_period = IntParameter(7, 50, default=14, space="buy", optimize=True, load=True)
+    aroon_long_min = IntParameter(0, 80, default=10, space="buy", optimize=True, load=True)
+    aroon_short_max = IntParameter(-80, 0, default=-10, space="buy", optimize=True, load=True)
+
+    # -----------------------------
     # RSI filter
     # -----------------------------
     use_rsi_filter = BooleanParameter(default=False, space="buy", optimize=True, load=True)
@@ -154,6 +162,9 @@ class EMASupertrendAdvanced(IStrategy):
             },
             "ADX": {
                 "adx": {"color": "yellow"},
+            },
+            "Aroon_Osc": {
+                "aroon_osc": {"color": "fuchsia"},
             },
             "BB_Width": {
                 "bb_width": {"color": "violet"},
@@ -240,6 +251,7 @@ class EMASupertrendAdvanced(IStrategy):
         # RSI / ADX / ATR
         dataframe["rsi"] = ta.RSI(dataframe, timeperiod=int(self.rsi_period.value))
         dataframe["adx"] = ta.ADX(dataframe, timeperiod=int(self.adx_period.value))
+        dataframe["aroon_osc"] = ta.AROONOSC(dataframe, timeperiod=int(self.aroon_period.value))
         dataframe["atr"] = ta.ATR(dataframe, timeperiod=int(self.atr_period.value))
 
         # Volume MA
@@ -322,6 +334,8 @@ class EMASupertrendAdvanced(IStrategy):
         st_ok_short = dataframe["st_dir"] == -1
         adx_ok = dataframe["adx"] >= self.adx_threshold.value
         adx_ok_short = dataframe["adx"] >= self.short_adx_threshold.value
+        aroon_ok_long = dataframe["aroon_osc"] >= self.aroon_long_min.value
+        aroon_ok_short = dataframe["aroon_osc"] <= self.aroon_short_max.value
         rsi_ok_long = (dataframe["rsi"] < self.rsi_overbought.value) & (dataframe["rsi"] > self.rsi_oversold.value)
         rsi_ok_short = (dataframe["rsi"] < self.short_rsi_max.value) & (dataframe["rsi"] > self.rsi_oversold.value)
         vol_ok = dataframe["volume"] > (dataframe["volume_ma"] * float(self.volume_mult.value))
@@ -352,6 +366,10 @@ class EMASupertrendAdvanced(IStrategy):
             enabled_filters += 1
             score_long += adx_ok.astype(int)
             score_short += adx_ok_short.astype(int)
+        if self.use_aroon_filter.value:
+            enabled_filters += 1
+            score_long += aroon_ok_long.astype(int)
+            score_short += aroon_ok_short.astype(int)
         if self.use_rsi_filter.value:
             enabled_filters += 1
             score_long += rsi_ok_long.astype(int)
