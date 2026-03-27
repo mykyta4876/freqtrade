@@ -119,6 +119,12 @@ const navItems = ref([
     icon: 'i-mdi-chart-line',
   },
   {
+    label: 'Live Data',
+    to: '/live-data',
+    visible: computed(() => !botStore.canRunBacktest),
+    icon: 'i-mdi-wifi',
+  },
+  {
     label: 'Logs',
     to: '/logs',
     icon: 'i-mdi-format-list-bulleted',

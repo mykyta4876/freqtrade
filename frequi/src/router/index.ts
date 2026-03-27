@@ -21,6 +21,11 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/ChartsView.vue'),
   },
   {
+    path: '/live-data',
+    name: 'Freqtrade Live Data',
+    component: () => import('@/views/LiveDataView.vue'),
+  },
+  {
     path: '/logs',
     name: 'Freqtrade Logs',
     component: () => import('@/views/LogView.vue'),
