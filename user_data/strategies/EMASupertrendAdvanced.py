@@ -157,6 +157,8 @@ class EMASupertrendAdvanced(IStrategy):
             },
             "BB_Width": {
                 "bb_width": {"color": "violet"},
+            },
+            "BB_Width_100": {
                 "bb_width_100": {"color": "deepskyblue"},
             },
         },
